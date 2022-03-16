@@ -1,5 +1,5 @@
 # Compendium Push Server
-The Compendium Push Server acts as a relay point between the PC and the Companion Device. When a PC wants to start an interaction it sends the first message via the Push Server by crafting a JSON message containing the message to forward and the Companion Device Public Key ID. This Public Key ID is a SHA256 hash of the public key and acts as a universal identifiers for the Companion Device. On receipt of such a message the server checks its registration database, indexed by the Public Key ID to retrieve the Firebase Cloud Messaging (FCM) Device ID. Having retrieved the FCM Device ID it constructs an FCM message with the payload set to the incoming message payload and sends it with high priority. 
+The Compendium Push Server acts as a relay point between the PC and the Companion Device. When a PC wants to start an interaction it sends the first message via the Push Server by crafting a JSON message containing the message to forward and the Companion Device Public Key. On receipt of such a message the server checks its registration database, indexed by the Public Key to retrieve the Firebase Cloud Messaging (FCM) Device ID. Having retrieved the FCM Device ID it constructs an FCM message with the payload set to the incoming message payload and sends it with high priority. 
 
 ## Setup
 In order to run your own server you need to have a Google Firebase account and credential file. In particular you will need to have the `GOOGLE_APPLICATION_CREDENTIALS` environment variable pointing to your credential file.
@@ -18,3 +18,39 @@ Upload `wheelhouse.tar.gz` to the server
 tar -zxf wheelhouse.tar.gz
 pip install -r wheelhouse/requirements.txt --no-index --find-links wheelhouse
 ```
+
+## Message Structure
+
+### Register
+```json
+{
+    "fb_id":"String Firebase ID",
+    "pub_key":"Base64 Encoded DER Public Key"
+}
+```
+### Push Message
+```json
+{
+    "msg":  {
+                //JSON Object Containing arbitrary message
+            },
+    "pub_key":"Base64 Encoded DER Public Key of target"
+}
+```
+### Response
+```json
+{
+    "success":true
+}
+```
+
+## Future Development
+Currently there is no authentication other either updates or sending. This could be expanded to provide greater resilience, in particular from denial of service attacks.
+
+### Signed Firebase ID Updates
+Registration requests should be signed by the corresponding private key. In this way only the owner of the private key would be able to update the Firebase ID for their public key. Without this there is a risk that someone could redirect messages to a different device. This doesn't present a confidentiality or integrity risk because the key establishment would subsequently fail, but it would be an effective denial of service to the targeted companion device. It would be relatively small change and would involve some minor additional logic on the push to validate signatures.
+
+### Restrict sending to approved senders
+In addition to registering their own public key and Firebase ID mapping, companion devices could also register approved senders by registering the public key of the PC as approved to send to the device. Requiring Push Messages to be signed by the sender would allow the Push Server to verify that the sender was approved before sending a notification.
+
+This would be relatively easy to implement since the companion device receives the PC public key during enrolment and could make an additional request to the Push Server at this point to register it as an approved sender. There would be a slight increase in load on the Push Server through signature checking, but it should be relatively minor. 
